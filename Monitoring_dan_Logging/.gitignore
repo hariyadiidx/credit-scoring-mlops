@@ -1,0 +1,3 @@
+grafana*/
+*.tar.gz
+data_prometheus/
