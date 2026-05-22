@@ -1,51 +1,65 @@
-from fastapi import FastAPI
-import uvicorn
+import os
 import time
-import random
-import importlib.util
-import sys
+import joblib
+import pandas as pd
+from fastapi import FastAPI, Request
+from prometheus_client import start_http_server, Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from starlette.responses import Response
 
-# Memuat module prometheus_exporter dari file lokal
-sys.path.append('.')
-exporter_module = importlib.import_module("3.prometheus_exporter")
+# 1. Konfigurasi Path Model
+# Asumsi: script ada di folder 'Monitoring_dan_Logging', 
+# maka harus naik 1 tingkat (..) untuk masuk ke folder 'Model'
+model_path = os.path.join('..', 'Model', 'model.pkl')
+model = joblib.load(model_path)
+
+# 2. Definisikan Metrik Monitoring (Sesuai Kriteria 4)
+REQUEST_COUNT = Counter('request_total', 'Total HTTP requests ke model')
+PREDICTION_COUNT = Counter('prediction_total', 'Total prediksi yang dihasilkan')
+ERROR_COUNT = Counter('error_total', 'Total error saat inferensi')
+CPU_USAGE = Gauge('cpu_usage_percent', 'Simulasi penggunaan CPU (%)')
+RESPONSE_TIME = Histogram('response_time_seconds', 'Waktu respons inferensi (detik)')
 
 app = FastAPI(title="Credit Scoring API")
 
 @app.on_event("startup")
 def startup_event():
-    # Menjalankan metrics server di port 8000 (port yang akan di-scrape Prometheus)
-    exporter_module.start_metrics_server(8000)
+    # Menjalankan server metrik terpisah untuk Prometheus di port 8000
+    start_http_server(8000)
 
 @app.get("/")
 def read_root():
     return {"message": "Sistem Serving Credit Scoring Aktif!"}
 
 @app.post("/predict")
-def predict():
+async def predict(request: Request):
     start_time = time.time()
-    exporter_module.REQUEST_COUNT.inc()
-
+    REQUEST_COUNT.inc()
+    
     try:
-        # Simulasi proses inferensi model (Dummy prediction untuk memantik metriks)
-        exporter_module.PREDICTION_COUNT.inc()
-        exporter_module.BATCH_SIZE.observe(1)
-
-        # Simulasi fluktuasi metrik sistem & model (agar grafik Grafana bergerak)
-        exporter_module.CPU_USAGE.set(random.uniform(10.0, 75.0))
-        exporter_module.MEMORY_USAGE.set(random.uniform(150.0, 450.0))
-        exporter_module.DATA_DRIFT.set(random.uniform(0.01, 0.15))
-        exporter_module.MODEL_CONFIDENCE.set(random.uniform(0.70, 0.99))
-        exporter_module.FEATURE_NAN.set(random.randint(0, 1))
-
-        # Mencatat waktu respons
-        exporter_module.RESPONSE_TIME.observe(time.time() - start_time)
-
-        return {"status": "success", "prediction": random.choice([0, 1])}
-
+        # Mengambil data JSON dari request
+        data = await request.json()
+        df = pd.DataFrame([data])
+        
+        # Prediksi menggunakan model asli
+        prediction = model.predict(df)
+        
+        # Update metrik
+        PREDICTION_COUNT.inc()
+        RESPONSE_TIME.observe(time.time() - start_time)
+        CPU_USAGE.set(15.5) # Simulasi statis
+        
+        return {"status": "success", "prediction": int(prediction[0])}
+    
     except Exception as e:
-        exporter_module.ERROR_COUNT.inc()
+        ERROR_COUNT.inc()
         return {"status": "error", "message": str(e)}
 
-if __name__ == "__main__":
+@app.get("/metrics")
+def metrics():
+    # Endpoint untuk Prometheus mengambil data monitoring
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+if __name__ == '__main__':
+    import uvicorn
     print("Menjalankan Model Serving FastAPI di port 5002...")
     uvicorn.run(app, host="127.0.0.1", port=5002)
