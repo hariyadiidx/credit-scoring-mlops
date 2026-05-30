@@ -9,13 +9,12 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      - name: Set up job
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Set up Python 3.10
+      - name: Set up Python 3.12.7
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.12.7'
 
       - name: Check Env
         run: env
@@ -36,7 +35,7 @@ jobs:
       - name: Install Python dependencies
         run: echo "Dependencies verified."
 
-      - name: Upload to GitHub
+      - name: Upload to Google Drive
         uses: actions/upload-artifact@v4
         with:
           name: model-artifact
