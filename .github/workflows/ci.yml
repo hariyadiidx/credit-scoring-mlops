@@ -26,6 +26,8 @@ jobs:
       - name: Run mlflow project
         env:
           DAGSHUB_USER_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+          MLFLOW_TRACKING_USERNAME: hariyadiidx
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
         run: python modelling_tuning.py
 
       - name: Get latest MLflow run_id
