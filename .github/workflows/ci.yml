@@ -57,6 +57,3 @@ jobs:
         run: |
           docker push hariyadi76/credit-scoring-model:latest
           docker push hariyadi76/credit-scoring-model:v2.0
-      
-      - name: Complete job
-        run: echo "All Advanced CI steps completed!"
