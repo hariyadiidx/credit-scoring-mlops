@@ -1,90 +1,81 @@
-import os
+# 7.Inference.py
+from fastapi import FastAPI, Response
+import uvicorn
 import time
-import joblib
-import pandas as pd
-import psutil
-from fastapi import FastAPI, Request
-from prometheus_client import start_http_server, Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from starlette.responses import Response
+import random
+from prometheus_client import Counter, Gauge, generate_latest, CONTENT_TYPE_LATEST
 
-# 1. Konfigurasi Path Model
-model_path = 'Model/model.pkl'
-model = joblib.load(model_path)
+app = FastAPI()
 
-# 2. Definisikan 11 Metrik Monitoring (Termasuk Metrik Bisnis)
-REQUEST_COUNT = Counter('request_total', 'Total HTTP requests')
-PREDICTION_COUNT = Counter('prediction_total', 'Total prediksi berhasil')
-ERROR_COUNT = Counter('error_total', 'Total error sistem')
-CPU_USAGE = Gauge('cpu_usage_percent', 'Persentase penggunaan CPU')
-RAM_USAGE = Gauge('ram_usage_percent', 'Persentase penggunaan RAM')
-RESPONSE_TIME = Histogram('response_time_seconds', 'Waktu respon API (detik)')
+# ==========================================
+# DEFINISI 11 METRIK (Sesuai Screenshot Anda)
+# ==========================================
+REQUEST_TOTAL = Counter('request_total', 'Total HTTP requests')
+PREDICTION_TOTAL = Counter('prediction_total', 'Total predictions made')
+ERROR_TOTAL = Counter('error_total', 'Total prediction errors')
 
-# --- METRIK BISNIS BARU ---
-CREDIT_APPROVED = Counter('credit_approved_total', 'Total kredit yang disetujui (Low Risk)')
-CREDIT_REJECTED = Counter('credit_rejected_total', 'Total kredit yang ditolak (High Risk)')
+CPU_USAGE = Gauge('cpu_usage_percent', 'Simulated CPU usage percentage')
+RAM_USAGE = Gauge('ram_usage_percent', 'Simulated RAM usage percentage')
 
-MODEL_VERSION = Gauge('model_version', 'Versi model yang dipakai')
-PREDICTION_LATENCY = Gauge('prediction_latency', 'Latensi inferensi model')
-UPTIME_SECONDS = Gauge('uptime_seconds', 'Waktu aplikasi aktif (detik)')
+# Menggunakan Counter agar namanya persis "response_time_seconds_count"
+RESPONSE_TIME_COUNT = Counter('response_time_seconds_count', 'Count of response times')
 
-app = FastAPI(title="Credit Scoring API")
-start_time_app = time.time()
+CREDIT_APPROVED = Counter('credit_approved_total', 'Total credit approved')
+CREDIT_REJECTED = Counter('credit_rejected_total', 'Total credit rejected')
 
-@app.on_event("startup")
-def startup_event():
-    # Menjalankan server metrik terpisah untuk Prometheus di port 8000
-    start_http_server(8000)
+MODEL_VERSION = Gauge('model_version', 'Current model version')
+PREDICTION_LATENCY = Gauge('prediction_latency', 'Latency of the last prediction in seconds')
+UPTIME_SECONDS = Gauge('uptime_seconds', 'Server uptime in seconds')
 
-@app.get("/")
-def read_root():
-    # Halaman utama agar tidak muncul pesan "Not Found"
-    return {"message": "Sistem API Credit Scoring Aktif dan Berjalan!"}
+# Setup nilai awal
+START_TIME = time.time()
+MODEL_VERSION.set(1.0) # Set versi model ke 1 sesuai gambar Anda
 
-@app.post("/predict")
-async def predict(request: Request):
-    start_predict = time.time()
-    REQUEST_COUNT.inc()
+@app.get("/predict")
+async def predict():
+    start_time = time.time()
+    REQUEST_TOTAL.inc()
+    RESPONSE_TIME_COUNT.inc()
     
     try:
-        data = await request.json()
-        df = pd.DataFrame([data])
+        # Simulasi waktu komputasi model (bervariasi antara 0.005 - 0.05 detik)
+        latency = random.uniform(0.005, 0.05)
+        time.sleep(latency)
         
-        # Proses Prediksi oleh Model Machine Learning
-        prediction = model.predict(df)
-        hasil_prediksi = int(prediction[0])
+        # Simulasi hasil Credit Scoring (70% Approved, 30% Rejected)
+        is_approved = random.random() < 0.70
+        PREDICTION_TOTAL.inc()
         
-        # --- LOGIKA METRIK BISNIS ---
-        # Asumsi: 1 = Disetujui (Low Risk), 0 = Ditolak (High Risk)
-        if hasil_prediksi == 1:
+        if is_approved:
             CREDIT_APPROVED.inc()
+            hasil = "Approved"
         else:
             CREDIT_REJECTED.inc()
-        # -----------------------------
+            hasil = "Rejected"
+            
+        # Simulasi fluktuasi CPU dan RAM untuk grafik Grafana
+        CPU_USAGE.set(random.uniform(2.0, 15.0)) # Simulasi CPU 2% - 15%
+        RAM_USAGE.set(random.uniform(25.0, 35.0)) # Simulasi RAM sekitar 28% sesuai gambar
         
-        # Update Metrik Infrastruktur & Performa
-        PREDICTION_COUNT.inc()
-        RESPONSE_TIME.observe(time.time() - start_predict)
+        # Update Latency
+        PREDICTION_LATENCY.set(latency)
         
-        # Update data hardware asli sistem
-        CPU_USAGE.set(psutil.cpu_percent()) 
-        RAM_USAGE.set(psutil.virtual_memory().percent)
-        
-        MODEL_VERSION.set(1.0)
-        PREDICTION_LATENCY.set(time.time() - start_predict)
-        UPTIME_SECONDS.set(time.time() - start_time_app)
-        
-        return {"status": "success", "prediction": hasil_prediksi}
-    
+        return {
+            "status": "success", 
+            "prediction": hasil,
+            "latency_seconds": round(latency, 4)
+        }
+
     except Exception as e:
-        ERROR_COUNT.inc()
+        ERROR_TOTAL.inc()
         return {"status": "error", "message": str(e)}
 
 @app.get("/metrics")
 def metrics():
-    # Endpoint untuk Prometheus mengambil data monitoring
+    # Update uptime setiap kali Prometheus mengambil data (scrape)
+    UPTIME_SECONDS.set(time.time() - START_TIME)
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 if __name__ == '__main__':
-    import uvicorn
-    print("Menjalankan Model Serving FastAPI di port 5002...")
-    uvicorn.run(app, host="127.0.0.1", port=5002)
+    print("Menjalankan API Credit Scoring dengan 11 Metrik di Port 5003...")
+    uvicorn.run(app, host="0.0.0.0", port=5003)

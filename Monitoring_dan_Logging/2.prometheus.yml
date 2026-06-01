@@ -1,8 +1,7 @@
 global:
-  scrape_interval: 1s # Scrape data setiap 1 detik agar grafik cepat terisi
+  scrape_interval: 2s
 
 scrape_configs:
   - job_name: 'credit_scoring_model'
     static_configs:
-      # Target mengarah ke port 8000 tempat metrics exporter berjalan
-      - targets: ['host.docker.internal:8000', 'localhost:8000', '127.0.0.1:8000']
+      - targets: ['172.17.0.1:5003']
