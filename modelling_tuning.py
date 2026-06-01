@@ -14,7 +14,8 @@ import json
 # 1. KONFIGURASI DAGSHUB & MLFLOW
 # ==========================================
 DAGSHUB_USERNAME = "hariyadiidx" 
-DAGSHUB_REPO = "Credit-Scoring-MLflow"
+# [REVISI] Nama repo disesuaikan dengan URL DagsHub Anda
+DAGSHUB_REPO = "Proyek-MLOps-Dicoding"
 
 dagshub.init(repo_owner=DAGSHUB_USERNAME, repo_name=DAGSHUB_REPO, mlflow=True)
 mlflow.set_tracking_uri(f"https://dagshub.com/{DAGSHUB_USERNAME}/{DAGSHUB_REPO}.mlflow")
